@@ -1,0 +1,81 @@
+services:
+
+# conteneur de la base de données MariaDB
+  db:
+    image: mariadb:latest
+    container_name: mariadb
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: mydatabase
+      MYSQL_USER: user
+      MYSQL_PASSWORD: userpassword
+    networks:
+      - web
+    volumes:
+      - db_data:/var/lib/mysql
+    restart: always
+  
+# conteneur Traefik (reverse-proxy)
+  traefik:
+    image: traefik:latest
+    container_name: traefik
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "80:80"
+      - "8080:8080"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    networks:
+      - web
+    restart: always
+
+
+# conteneur web1 pour le premier site
+  web1:
+    image: php:apache
+    container_name: web1
+    volumes:
+      - ./site1:/var/www/html
+    networks:
+      - web
+    depends_on:
+      - db
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.web1.rule=Host(`mysite1.lan`)"
+      - "traefik.http.services.web1.loadbalancer.server.port=80"
+    restart: always
+    command: >
+      bash -c "docker-php-ext-install mysqli && apache2-foreground"
+
+# conteneur web2 pour le deuxieme site
+  web2:
+    image: php:apache
+    container_name: web2
+    volumes:
+      - ./site2:/var/www/html
+    networks:
+      - web
+    depends_on:
+      - db
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.web2.rule=Host(`mysite2.lan`)"
+      - "traefik.http.services.web2.loadbalancer.server.port=80"
+    restart: always
+    command: >
+      bash -c "docker-php-ext-install mysqli && apache2-foreground"
+
+# configuration réseau
+networks: 
+  web:
+    driver: bridge
+
+# configuration volumes
+volumes:
+  db_data:
+
+
